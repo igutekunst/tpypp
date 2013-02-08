@@ -21,13 +21,13 @@ def parseFunctionText(s):
 def parseFunction(s, linenumber):
     parsed = re.search(functionRegex, s)
     name, args, text =  parsed.group(1), parsed.group(2).split(","), parsed.group(3)
-    if verbose: print '<parser:' + str(linenumber) + '> parsed function ' + name + ' -> ' + str(args)
+    if verbose: print('<parser:' + str(linenumber) + '> parsed function ' + name + ' -> ' + str(args))
     functions[name] = args, parseFunctionText(text)
 
 def parseDefinition(s, linenumber):
     parsed = re.search(definitionRegex, s)
     name, value = parsed.group(1), parsed.group(2)
-    if verbose: print '<parser:' + str(linenumber) + '> parsed definition ' + name + ' -> ' + value
+    if verbose: print('<parser:' + str(linenumber) + '> parsed definition ' + name + ' -> ' + value)
     definitions[name] = value
 
 def parseFunctionCall(s):
@@ -57,13 +57,12 @@ def transformFile(inputFilename):
 
 def preprocessLine(s, linenumber):
     # if, else, endif block
-    global preprocessorState
-    global verbose
+    global preprocessorState, verbose
     modified = preprocessorState
     if re.match(ifDefRegex, s) != None or re.match(ifNDefRegex, s) != None:
         invert = re.match(ifNDefRegex, s) != None
         if preprocessorState != 'initial':
-            print str(linenumber) + ': nested #ifdef/#ifndef is not supported!'
+            print (str(linenumber) + ': nested #ifdef/#ifndef is not supported!')
             sys.exit(-1)
         keyword = re.search((ifNDefRegex if invert else ifDefRegex), s).group(1)
         if keyword in definitions:
@@ -76,17 +75,17 @@ def preprocessLine(s, linenumber):
         elif preprocessorState == 'ifdef_true':
             preprocessorState = 'else_false'            
         else:
-            print str(linenumber) + ': invalid #else statement'
+            print(str(linenumber) + ': invalid #else statement')
             sys.exit(-1)
         return None
     elif re.match(endifDefRegex, s) != None:
         if preprocessorState == 'initial':
-            print 'invalid #endif statement at line ' + str(linenumber)
+            print('invalid #endif statement at line ' + str(linenumber))
             sys.exit(-1)
         preprocessorState = 'initial'
 
     if preprocessorState != modified:
-        if verbose: print '<pre:' + str(linenumber) + '> ' + preprocessorState + ': \t' + s.rstrip()
+        if verbose: print('<pre:' + str(linenumber) + '> ' + preprocessorState + ': \t' + s.rstrip())
         return None
 
     if re.match(includeRegex, s) != None:
@@ -99,7 +98,7 @@ def preprocessLine(s, linenumber):
         return None
         
     # definition expansion
-    for name, value in definitions.items():
+    for name, value in list(definitions.items()):
         if name in s:
             s = s.replace(name, value)
 
@@ -107,10 +106,10 @@ def preprocessLine(s, linenumber):
     if isFunctionCall(s):
         linename, lineargs = parseFunctionCall(s)
         if linename in functions:
-            if verbose: print '<pre:' + str(linenumber) + '> matched ' + linename + str(lineargs)
+            if verbose: print('<pre:' + str(linenumber) + '> matched ' + linename + str(lineargs))
             args, text = functions[linename]
             if len(args) != len(lineargs):
-                print 'error: call to ' + linename + ' needs ' + str(len(args)) + ' arguments'
+                print('error: call to ' + linename + ' needs ' + str(len(args)) + ' arguments')
                 sys.exit(-1)
             for i, a in enumerate(args):
                 text = text.replace(a, lineargs[i])
