@@ -1,12 +1,12 @@
-import re, sys
+import re, sys, os
 functions, definitions = {}, {}
 verbose = False
 
-includeRegex = r"#include \"(.+)\""
 ifDefRegex = r"#ifdef (\w+)"
 ifNDefRegex = r"#ifndef (\w+)"
 elseDefRegex = r"#else"
 endifDefRegex = r"#endif"
+includeRegex = r"#include \"(.+)\""
 definitionRegex = r"#define[ ]+(\w+)\s+(.*)"
 functionRegex = r"#define\s+(\w+)\((\w+(?:\s*,\s*\w+)*)\)\s(.*)"
 functionCallRegex = r"(\w+)\(([^\)]+)"
@@ -42,47 +42,33 @@ def parseLine(s, linenumber):
         parseFunction(s, linenumber)
     else:
         return True
-def parseFile(inputFilename, flagVerbose = False):
-  global verbose
-  verbose = flagVerbose
-  global preprocessorState
+
+def parseFile(inputFilename):
   for i, line in enumerate(open(inputFilename, 'r')):
-    parseLine(line, i + 1)   
-def transformFile(inputFilename, flagVerbose = False):
-  global verbose
-  verbose = flagVerbose
-  global preprocessorState
+    parseLine(line, i + 1)
 
-  parseFile(inputFilename, flagVerbose)
-
+def transformFile(inputFilename):
+  parseFile(inputFilename)
   for i, line in enumerate(open(inputFilename, 'r')):
       processedLine = preprocessLine(line, i + 1)
       if processedLine:
           for char in processedLine:
               yield char
 
-
 def preprocessLine(s, linenumber):
     # if, else, endif block
     global preprocessorState, verbose
     modified = preprocessorState
-    if re.match(ifDefRegex, s) != None:
+    if re.match(ifDefRegex, s) != None or re.match(ifNDefRegex, s) != None:
+        invert = re.match(ifNDefRegex, s) != None
         if preprocessorState != 'initial':
-            print(str(linenumber) + ': nested #ifdef is not supported!')
+            print (str(linenumber) + ': nested #ifdef/#ifndef is not supported!')
             sys.exit(-1)
-        keyword = re.search(ifDefRegex, s).group(1)
+        keyword = re.search((ifNDefRegex if invert else ifDefRegex), s).group(1)
         if keyword in definitions:
-            preprocessorState = 'ifdef_true'
+            preprocessorState = 'ifdef_true' if not invert else 'ifdef_false'
         else:
-            preprocessorState = 'ifdef_false'
-    elif re.match(ifNDefRegex, s) != None:
-      if preprocessorState != 'initial':
-        print(str(linenumber) + ": nested #ifndef is not supported!")
-      keyword = re.search(ifNdefRegex, s).group(1)
-      if keyword not in definitions:
-        preprocessorState = "ifdef_true"
-      else:
-        preprocessorState = 'ifdef_false'
+            preprocessorState = 'ifdef_false' if not invert else 'ifdef_true'
     elif re.match(elseDefRegex, s) != None:
         if preprocessorState == 'ifdef_false':
             preprocessorState = 'else_true'
@@ -119,7 +105,6 @@ def preprocessLine(s, linenumber):
     # function call expansion
     if isFunctionCall(s):
         linename, lineargs = parseFunctionCall(s)
-        verbose = True
         if linename in functions:
             if verbose: print('<pre:' + str(linenumber) + '> matched ' + linename + str(lineargs))
             args, text = functions[linename]
@@ -135,13 +120,14 @@ def preprocessLine(s, linenumber):
 
     return s
 
-
-
 def preprocessFile(inputFilename, outputFilename, flagVerbose = False):
-  global verbose
-  verbose = flagVerbose
-  global preprocessorState
-  preprocessorState = 'initial'
-  out = open(inputFilename + '.p' if outputFilename == None else outputFilename, 'w')
-  for c in transformFile(inputFilename, flagVerbose):
-      out.write(c)
+    global verbose
+    verbose = flagVerbose
+    global preprocessorState
+    preprocessorState = 'initial'
+    outfilename = inputFilename + '.p' if outputFilename == None else outputFilename
+    if os.path.exists(outfilename):
+        os.remove(outfilename)
+    out = open(outfilename, 'w')
+    for c in transformFile(inputFilename):
+        out.write(c)
